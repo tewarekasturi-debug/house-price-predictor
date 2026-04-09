@@ -1,10 +1,10 @@
 import pandas as pd
-from sklearn.linear_model import LinearRegression
+from xgboost import XGBRegressor
 import pickle
 data = pd.read_csv("data.csv")
 X = data[['area', 'bedrooms', 'bathrooms']]
 y = data['price']
-model = LinearRegression()
+model = XGBRegressor(n_estimators=100, learning_rate=0.1)
 model.fit(X, y)
 pickle.dump(model, open("model.pkl", "wb"))
-print("Model trained and saved!")
+print("XGBoost model trained and saved!")

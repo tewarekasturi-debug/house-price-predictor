@@ -6,3 +6,4 @@ plotly
 geopy
 folium
 streamlit-folium
+xgboost
