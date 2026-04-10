@@ -1,63 +1,51 @@
 import streamlit as st
+import pandas as pd
 import numpy as np
 import pickle
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+from xgboost import XGBRegressor
 import plotly.express as px
-from geopy.geocoders import Nominatim
-import folium
-from streamlit_folium import st_folium
-model = pickle.load(open("model.pkl", "rb"))
-st.set_page_config(page_title="🏡 Smart Predictor", layout="wide")
-theme = st.sidebar.radio("🌙 Theme", ["Light", "Dark"])
-if theme == "Dark":
-    st.markdown("""
-    <style>
-    body {background-color: #0e1117; color: white;}
-    </style>
-    """, unsafe_allow_html=True)
-st.title("🏡 AI House Price Predictor")
-st.write("Next-level real estate intelligence 💡")
-location_prices = {
-    "Mumbai": 8000,
-    "Delhi": 6000,
-    "Bangalore": 7000,
-    "Nagpur": 4000,
-    "Pune": 6500
-}
-col1, col2 = st.columns(2)
-with col1:
-    area = st.slider("Area", 500, 5000, 1000)
-    bedrooms = st.selectbox("Bedrooms", [1,2,3,4,5])
-    bathrooms = st.selectbox("Bathrooms", [1,2,3,4])
-    location = st.selectbox("Location", list(location_prices.keys()))
-    if st.button("Predict"):
-        base = model.predict(np.array([[area, bedrooms, bathrooms]]))[0]
-        final = base + (area * location_prices[location])
-        st.success(f"💰 Price: ₹ {int(final):,}")
-with col2:
-    st.subheader("📍 Location Map")
-    geolocator = Nominatim(user_agent="app")
-    loc = geolocator.geocode(location)
-    if loc:
-        m = folium.Map(location=[loc.latitude, loc.longitude], zoom_start=10)
-        folium.Marker([loc.latitude, loc.longitude], tooltip=location).add_to(m)
-        st_folium(m, width=400, height=300)
-st.subheader("📊 Interactive Price Chart")
-areas = list(range(500, 5000, 100))
-prices = []
-for a in areas:
-    p = model.predict([[a, 3, 2]])[0]
-    p += a * location_prices["Nagpur"]
-    prices.append(p)
-fig = px.line(x=areas, y=prices, labels={'x':'Area', 'y':'Price'}, title="Price Trend")
+st.title("🏡 House Price Predictor (Pro App)")
+st.subheader("📁 Upload Your Dataset")
+uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+if uploaded_file:
+    data = pd.read_csv(uploaded_file)
+else:
+    data = pd.read_csv("data.csv")
+st.write("Dataset Preview 👇")
+st.dataframe(data)
+fig = px.scatter(data, x="area", y="price", color="bedrooms",
+                 title="House Price Visualization")
 st.plotly_chart(fig)
-st.subheader("🤖 AI Assistant")
-user_q = st.text_input("Ask something about house prices:")
-if user_q:
-    if "cheap" in user_q.lower():
-        st.write("👉 Try smaller area or choose Nagpur for lower prices.")
-    elif "expensive" in user_q.lower():
-        st.write("👉 Mumbai and Bangalore have higher property rates.")
+st.subheader("🧠 Train Model")
+if st.button("Train Model"):
+    X = data[['area', 'bedrooms', 'bathrooms']]
+    y = data['price']
+    lr = LinearRegression()
+    lr.fit(X, y)
+    lr_pred = lr.predict(X)
+    lr_score = r2_score(y, lr_pred)
+    xgb = XGBRegressor()
+    xgb.fit(X, y)
+    xgb_pred = xgb.predict(X)
+    xgb_score = r2_score(y, xgb_pred)
+    if xgb_score > lr_score:
+        best_model = xgb
+        model_name = "XGBoost"
     else:
-        st.write("👉 Prices depend on area, location, and features.")
-st.write("---")
-st.write("🚀 Advanced App | Built with Python & AI")
+        best_model = lr
+        model_name = "Linear Regression"
+    pickle.dump(best_model, open("model.pkl", "wb"))
+    st.success(f"Model trained using {model_name} 🎉")
+    st.write("### 📊 Accuracy")
+    st.write(f"Linear Regression: {lr_score:.2f}")
+    st.write(f"XGBoost: {xgb_score:.2f}")
+st.subheader("🏡 Predict Price")
+area = st.number_input("Area")
+bedrooms = st.number_input("Bedrooms")
+bathrooms = st.number_input("Bathrooms")
+if st.button("Predict"):
+    model = pickle.load(open("model.pkl", "rb"))
+    result = model.predict(np.array([[area, bedrooms, bathrooms]]))
+    st.success(f"Estimated Price: ₹ {result[0]:,.2f}")
